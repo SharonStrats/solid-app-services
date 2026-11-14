@@ -18,6 +18,7 @@ function publish (lobby: Lobby): void {
     lobbyId: lobby.id,
     quizUri: lobby.quizUri,
     questionCount: lobby.questionCount,
+    currentQuestionIndex: lobby.currentQuestionIndex,
     status: lobby.status,
     hostPlayerId: lobby.hostPlayerId,
     players: lobby.players.map(({ id, name, webId, score, answered, connected }) => ({ id, name, webId, score, answered, connected }))
@@ -46,8 +47,13 @@ io.on("connection", socket => {
     if (!lobby) socket.emit("gameError", { message: "Only the host can start the game." });
     else publish(lobby);
   });
-  socket.on("submitAnswer", (input: { score: number }) => {
-    const lobby = store.answer(socket.id, input.score);
+  socket.on("advanceQuestion", () => {
+    const lobby = store.advance(socket.id);
+    if (!lobby) socket.emit("gameError", { message: "The current question is not complete or cannot be advanced." });
+    else publish(lobby);
+  });
+  socket.on("submitAnswer", (input: { questionIndex: number, score: number }) => {
+    const lobby = store.answer(socket.id, input.questionIndex, input.score);
     if (!lobby) socket.emit("gameError", { message: "The answer could not be recorded." });
     else publish(lobby);
   });
