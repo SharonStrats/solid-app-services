@@ -1,4 +1,4 @@
-# SolidOS AI services
+# SolidOS application services
 
 Node/TypeScript services for OpenAI-assisted questionnaire grading, essay
 feedback, document extraction, quiz generation, and flashcard generation.
@@ -45,7 +45,7 @@ the server-side `.env`; `.env` is intentionally not committed.
 
 ## API
 
-`GET /health` returns `{ "status": "ok", "service": "solid-ai-services" }`.
+`GET /health` returns `{ "status": "ok", "service": "solid-app-services" }`.
 
 `POST /api/grade/short-answer` accepts:
 
@@ -123,10 +123,10 @@ On an Ubuntu droplet:
 sudo apt update
 sudo apt install -y git nodejs npm
 sudo npm install --global pnpm
-sudo mkdir -p /opt/solid-ai-services
-sudo chown "$USER":"$USER" /opt/solid-ai-services
-git clone https://github.com/SharonStrats/solid-ai-services.git /opt/solid-ai-services
-cd /opt/solid-ai-services
+sudo mkdir -p /opt/solid-app-services
+sudo chown "$USER":"$USER" /opt/solid-app-services
+git clone https://github.com/SharonStrats/solid-app-services.git /opt/solid-app-services
+cd /opt/solid-app-services
 pnpm install --frozen-lockfile
 cp .env.example .env
 chmod 600 .env
@@ -158,14 +158,14 @@ pnpm start
 ```
 
 For a persistent service, copy
-`deploy/solid-ai-services.service.example` to
-`/etc/systemd/system/solid-ai-services.service`, update the user and
+`deploy/solid-app-services.service.example` to
+`/etc/systemd/system/solid-app-services.service`, update the user and
 installation path if needed, then run:
 
 ```sh
 sudo systemctl daemon-reload
-sudo systemctl enable --now solid-ai-services
-systemctl status solid-ai-services
+sudo systemctl enable --now solid-app-services
+systemctl status solid-app-services
 curl http://127.0.0.1:5000/health
 ```
 

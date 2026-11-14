@@ -16,7 +16,7 @@ export async function handleMcpRequest (
   services: AiServices
 ): Promise<void> {
   const server = new McpServer({
-    name: "solid-ai-services",
+    name: "solid-app-services",
     version: "0.1.0"
   });
 

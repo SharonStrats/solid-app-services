@@ -1,12 +1,12 @@
 [Unit]
-Description=SolidOS AI services
+Description=SolidOS application services
 After=network.target
 
 [Service]
 Type=simple
 User=solidos
-WorkingDirectory=/opt/solid-ai-services
-EnvironmentFile=/opt/solid-ai-services/.env
+WorkingDirectory=/opt/solid-app-services
+EnvironmentFile=/opt/solid-app-services/.env
 ExecStart=/usr/bin/pnpm start
 Restart=on-failure
 RestartSec=5

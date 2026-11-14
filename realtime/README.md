@@ -1,7 +1,7 @@
 # SolidOS quiz realtime service
 
 This is the first separate-process prototype for live questionnaire rooms. It
-is intentionally colocated under `solid-ai-services` so it can be deployed
+is intentionally colocated under `solid-app-services` so it can be deployed
 with the AI service now, but it should move to its own repository when room
 traffic, persistence, or independent deployment requires it.
 
@@ -55,18 +55,17 @@ but the quiz room state must not be reused as the editing model. Editing needs
 document identity, operation ordering, conflict resolution, permissions, and
 recovery after disconnects.
 
-For questionnaire authoring, the safest progression is:
+For human-readable Markdown editing, the safest progression is:
 
 1. Add optimistic concurrency with resource ETags or version numbers so two
    editors receive an explicit conflict instead of silently overwriting one
    another.
-2. Relay small question-level operations in a separate collaboration
-   namespace and persist accepted changes to the author's Pod.
-3. Use a CRDT such as Yjs or Automerge only for rich text or very frequent
-   concurrent edits; periodically persist a canonical snapshot and keep the
-   Pod as the durable source of truth.
+2. Use CodeMirror plus a CRDT such as Yjs to represent the Markdown as shared
+   text, and relay updates in a separate collaboration namespace.
+3. Persist canonical Markdown checkpoints to the author's Pod. Keep the
+   collaboration state and presence data separate from the ordinary file.
 
-RDF/Turtle files are not themselves a good character-level collaborative
-document format. A question-level operation model or CRDT document should be
-the temporary editing representation, with validated RDF writes at commit
-boundaries.
+Markdown is a much better first collaborative format than RDF/Turtle because
+it is already a human-readable text document and CodeMirror can edit it
+directly. The existing investigation in
+`mydocs/collaborativedocs.md` describes the CodeMirror/Yjs checkpoint design.

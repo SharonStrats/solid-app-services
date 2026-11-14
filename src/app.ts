@@ -27,7 +27,7 @@ export function createApp (
   app.use(express.json({ limit: "256kb" }));
 
   app.get("/health", (_request, response) => {
-    response.json({ status: "ok", service: "solid-ai-services" });
+    response.json({ status: "ok", service: "solid-app-services" });
   });
   app.get("/metrics/usage", (request, response) => {
     if (!usage || !usageMetricsToken || request.get("authorization") !== `Bearer ${usageMetricsToken}`) {
