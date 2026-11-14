@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { gradingResponseSchema, type GradingRequest, type GradingResponse } from "./contracts.js";
+import type { UsageTracker } from "./usage.js";
 
 const responseSchema = {
   type: "object",
@@ -17,7 +18,7 @@ const responseSchema = {
   required: ["decision", "score", "maxScore", "confidence", "feedback", "matchedCriteria", "missingCriteria", "needsReview"]
 } as const;
 
-export function createGrader(apiKey: string | undefined, model: string) {
+export function createGrader (apiKey: string | undefined, model: string, usage?: UsageTracker) {
   const client = apiKey ? new OpenAI({ apiKey }) : undefined;
 
   return async function gradeAnswer(request: GradingRequest): Promise<GradingResponse> {
@@ -41,6 +42,7 @@ export function createGrader(apiKey: string | undefined, model: string) {
         }
       }
     });
+    if (response.usage) usage?.record("short-answer", model, response.usage);
 
     let parsed: unknown;
     try {

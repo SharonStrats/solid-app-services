@@ -6,6 +6,9 @@ export interface Config {
   openAiApiKey: string | undefined;
   openAiModel: string;
   corsOrigins: string[];
+  usageMetricsToken: string | undefined;
+  inputCostPerMillion: number;
+  outputCostPerMillion: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -23,5 +26,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       .split(",")
       .map((origin) => origin.trim())
       .filter(Boolean)
+    ,
+    usageMetricsToken: env.USAGE_METRICS_TOKEN?.trim() || undefined,
+    inputCostPerMillion: Number(env.OPENAI_INPUT_COST_PER_MILLION ?? 0),
+    outputCostPerMillion: Number(env.OPENAI_OUTPUT_COST_PER_MILLION ?? 0)
   };
 }

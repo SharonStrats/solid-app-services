@@ -71,6 +71,28 @@ export const textGenerationRequestSchema = z.object({
 
 export type TextGenerationRequest = z.infer<typeof textGenerationRequestSchema>;
 
+export const quizImportRequestSchema = z.object({
+  format: z.enum(["quiz", "survey"]),
+  document: z.object({
+    name: z.string().min(1).max(500),
+    mediaType: z.string().max(200),
+    blocks: z.array(z.object({
+      kind: z.enum(["heading", "paragraph", "list", "table", "notes"]),
+      text: z.string().min(1).max(100_000),
+      sourceDocument: z.string().min(1),
+      mediaType: z.string().max(200),
+      page: z.number().int().positive().optional(),
+      slide: z.number().int().positive().optional(),
+      warnings: z.array(z.string()).default([])
+    })).min(1).max(2_000),
+    warnings: z.array(z.string()).default([]),
+    sourceDocumentUri: z.string().url().optional()
+  }),
+  maxQuestions: z.number().int().min(1).max(6).default(6)
+});
+
+export type QuizImportRequest = z.infer<typeof quizImportRequestSchema>;
+
 export const quizQuestionSchema = z.object({
   type: z.enum(["multiple-choice", "true-false", "short-answer"]),
   question: z.string().min(1),

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { UsageTracker } from "./usage.js";
 import {
   essayFeedbackResponseSchema,
   flashcardGenerationResponseSchema,
@@ -19,7 +20,8 @@ async function structured<T> (
   schema: JsonSchema,
   instructions: string,
   input: unknown,
-  parse: (value: unknown) => T
+  parse: (value: unknown) => T,
+  usage: UsageTracker | undefined
 ): Promise<T> {
   const response = await client.responses.create({
     model,
@@ -27,6 +29,7 @@ async function structured<T> (
     input: JSON.stringify(input),
     text: { format: { type: "json_schema", name, strict: true, schema } }
   });
+  if (response.usage) usage?.record(name, model, response.usage);
   let value: unknown;
   try {
     value = JSON.parse(response.output_text);
@@ -42,7 +45,7 @@ export interface AiServices {
   generateFlashcards: (request: TextGenerationRequest) => Promise<FlashcardGenerationResponse>;
 }
 
-export function createAiServices (apiKey: string | undefined, model: string): AiServices {
+export function createAiServices (apiKey: string | undefined, model: string, usage?: UsageTracker): AiServices {
   const client = apiKey ? new OpenAI({ apiKey }) : undefined;
   const requireClient = (): OpenAI => {
     if (!client) throw new Error("OPENAI_API_KEY is required for AI generation");
@@ -80,7 +83,8 @@ export function createAiServices (apiKey: string | undefined, model: string): Ai
       },
       "Give constructive, specific feedback on the essay. Do not rewrite the student's work. Refer to paragraphs by number and identify strengths before improvements.",
       request,
-      (value) => essayFeedbackResponseSchema.parse(value)
+      (value) => essayFeedbackResponseSchema.parse(value),
+      usage
     ),
     generateQuiz: (request) => structured(
       requireClient(),
@@ -112,7 +116,8 @@ export function createAiServices (apiKey: string | undefined, model: string): Ai
       },
       "Create accurate, varied questions from the supplied source. Cover the important ideas, avoid trivia, include explanations and source references, and follow the requested count and difficulty.",
       request,
-      (value) => quizGenerationResponseSchema.parse(value)
+      (value) => quizGenerationResponseSchema.parse(value),
+      usage
     ),
     generateFlashcards: (request) => structured(
       requireClient(),
@@ -142,7 +147,8 @@ export function createAiServices (apiKey: string | undefined, model: string): Ai
       },
       "Create concise, useful study flashcards from the supplied source. Test important concepts, avoid duplicate cards, and include source references.",
       request,
-      (value) => flashcardGenerationResponseSchema.parse(value)
+      (value) => flashcardGenerationResponseSchema.parse(value),
+      usage
     )
   };
 }

@@ -140,9 +140,14 @@ PORT=5000
 OPENAI_API_KEY=your-server-side-key
 OPENAI_MODEL=gpt-6.1-sol
 CORS_ORIGINS=https://quiz.sharonsolidosplayground.com
+USAGE_METRICS_TOKEN=replace-with-a-long-random-secret
 ```
 
 Do not commit `.env` or put `OPENAI_API_KEY` in the questionnaire app.
+Set `OPENAI_INPUT_COST_PER_MILLION` and `OPENAI_OUTPUT_COST_PER_MILLION`
+using the current prices for the selected OpenAI model. The protected
+`GET /metrics/usage` endpoint then reports request count, token totals, and
+estimated USD cost. The estimate is zero until those prices are configured.
 Build and verify the service:
 
 ```sh
