@@ -174,3 +174,24 @@ to `http://127.0.0.1:5000`, restrict `CORS_ORIGINS` to the exact quiz origin,
 and keep port 5000 closed in the firewall. Before exposing this beyond your
 own quiz app, add caller authentication, rate limiting, request logging that
 omits student content, and provider usage monitoring.
+
+## Realtime quiz rooms
+
+The colocated [`realtime/`](./realtime/) service is a separate Node process
+for live quiz rooms. It uses Socket.IO for room presence and synchronized
+state, while the questionnaire pane remains responsible for loading the
+immutable published quiz and scoring answers. It is intentionally memory-only
+for the prototype and should be split into its own repository/service when it
+needs independent scaling or durable room state.
+
+```sh
+cd realtime
+npm install
+npm run typecheck
+npm run build
+```
+
+Run it behind the reverse proxy on an internal port such as `5100`. Do not
+place Solid bearer or DPoP credentials in room URLs. Authentication,
+published-quiz access validation, authoritative scoring, rate limiting, and
+expiry are required before public multiplayer games.
