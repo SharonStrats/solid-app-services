@@ -1,0 +1,148 @@
+import OpenAI from "openai";
+import {
+  essayFeedbackResponseSchema,
+  flashcardGenerationResponseSchema,
+  quizGenerationResponseSchema,
+  type EssayFeedbackRequest,
+  type EssayFeedbackResponse,
+  type FlashcardGenerationResponse,
+  type QuizGenerationResponse,
+  type TextGenerationRequest
+} from "./contracts.js";
+
+type JsonSchema = Record<string, unknown>;
+
+async function structured<T> (
+  client: OpenAI,
+  model: string,
+  name: string,
+  schema: JsonSchema,
+  instructions: string,
+  input: unknown,
+  parse: (value: unknown) => T
+): Promise<T> {
+  const response = await client.responses.create({
+    model,
+    instructions,
+    input: JSON.stringify(input),
+    text: { format: { type: "json_schema", name, strict: true, schema } }
+  });
+  let value: unknown;
+  try {
+    value = JSON.parse(response.output_text);
+  } catch {
+    throw new Error("OpenAI returned invalid JSON");
+  }
+  return parse(value);
+}
+
+export interface AiServices {
+  essayFeedback: (request: EssayFeedbackRequest) => Promise<EssayFeedbackResponse>;
+  generateQuiz: (request: TextGenerationRequest) => Promise<QuizGenerationResponse>;
+  generateFlashcards: (request: TextGenerationRequest) => Promise<FlashcardGenerationResponse>;
+}
+
+export function createAiServices (apiKey: string | undefined, model: string): AiServices {
+  const client = apiKey ? new OpenAI({ apiKey }) : undefined;
+  const requireClient = (): OpenAI => {
+    if (!client) throw new Error("OPENAI_API_KEY is required for AI generation");
+    return client;
+  };
+
+  return {
+    essayFeedback: (request) => structured(
+      requireClient(),
+      model,
+      "essay_feedback",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          overallFeedback: { type: "string" },
+          strengths: { type: "array", items: { type: "string" } },
+          areasToImprove: { type: "array", items: { type: "string" } },
+          paragraphFeedback: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                paragraph: { type: "integer", minimum: 1 },
+                feedback: { type: "string" },
+                suggestion: { type: "string" }
+              },
+              required: ["paragraph", "feedback", "suggestion"]
+            }
+          },
+          needsReview: { type: "boolean" }
+        },
+        required: ["overallFeedback", "strengths", "areasToImprove", "paragraphFeedback", "needsReview"]
+      },
+      "Give constructive, specific feedback on the essay. Do not rewrite the student's work. Refer to paragraphs by number and identify strengths before improvements.",
+      request,
+      (value) => essayFeedbackResponseSchema.parse(value)
+    ),
+    generateQuiz: (request) => structured(
+      requireClient(),
+      model,
+      "quiz_generation",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          questions: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                type: { type: "string", enum: ["multiple-choice", "true-false", "short-answer"] },
+                question: { type: "string" },
+                options: { type: "array", items: { type: "string" } },
+                answer: { type: "string" },
+                explanation: { type: "string" },
+                sourceReference: { type: "string" }
+              },
+              required: ["type", "question", "answer", "explanation", "sourceReference"]
+            }
+          }
+        },
+        required: ["title", "questions"]
+      },
+      "Create accurate, varied questions from the supplied source. Cover the important ideas, avoid trivia, include explanations and source references, and follow the requested count and difficulty.",
+      request,
+      (value) => quizGenerationResponseSchema.parse(value)
+    ),
+    generateFlashcards: (request) => structured(
+      requireClient(),
+      model,
+      "flashcard_generation",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          cards: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                front: { type: "string" },
+                back: { type: "string" },
+                sourceReference: { type: "string" },
+                difficulty: { type: "string", enum: ["easy", "medium", "hard"] }
+              },
+              required: ["front", "back", "sourceReference", "difficulty"]
+            }
+          }
+        },
+        required: ["title", "cards"]
+      },
+      "Create concise, useful study flashcards from the supplied source. Test important concepts, avoid duplicate cards, and include source references.",
+      request,
+      (value) => flashcardGenerationResponseSchema.parse(value)
+    )
+  };
+}
