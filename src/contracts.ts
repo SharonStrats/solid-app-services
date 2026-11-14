@@ -74,7 +74,7 @@ export type TextGenerationRequest = z.infer<typeof textGenerationRequestSchema>;
 export const quizQuestionSchema = z.object({
   type: z.enum(["multiple-choice", "true-false", "short-answer"]),
   question: z.string().min(1),
-  options: z.array(z.string().min(1)).max(6).optional(),
+  options: z.array(z.string().min(1)).max(6),
   answer: z.string().min(1),
   explanation: z.string().min(1),
   sourceReference: z.string().min(1)

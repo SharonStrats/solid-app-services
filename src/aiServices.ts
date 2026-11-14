@@ -104,7 +104,7 @@ export function createAiServices (apiKey: string | undefined, model: string): Ai
                 explanation: { type: "string" },
                 sourceReference: { type: "string" }
               },
-              required: ["type", "question", "answer", "explanation", "sourceReference"]
+              required: ["type", "question", "options", "answer", "explanation", "sourceReference"]
             }
           }
         },

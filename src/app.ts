@@ -19,7 +19,7 @@ export function createApp (
   app.use(cors({
     origin: corsOrigins.includes("*") ? true : corsOrigins,
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type"]
+    allowedHeaders: ["Content-Type", "Accept", "Mcp-Session-Id"]
   }));
   app.use(express.json({ limit: "256kb" }));
 
