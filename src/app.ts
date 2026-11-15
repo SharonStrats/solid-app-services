@@ -16,7 +16,7 @@ export function createApp (
   usageMetricsToken?: string
 ) {
   const app = express();
-  const upload = multer({ limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const upload = multer({ limits: { fileSize: 40 * 1024 * 1024, files: 1 } });
   const services = aiServices ?? createAiServices(undefined, "gpt-6.1-sol");
 
   app.use(cors({
@@ -147,10 +147,13 @@ export function createApp (
   const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
     console.error(error);
     const message = error instanceof Error ? error.message : "The request could not be completed";
-    const clientError = message.includes("supported") || message.includes("extractable");
+    const clientError = message.includes("supported") || message.includes("extractable") || error?.code === "LIMIT_FILE_SIZE";
+    const clientMessage = error?.code === "LIMIT_FILE_SIZE"
+      ? "The document is too large. Please choose a file smaller than 40 MB."
+      : message;
     response.status(clientError ? 400 : 502).json({
       error: clientError ? "invalid_request" : "ai_unavailable",
-      message: clientError ? message : "The AI provider could not produce a result"
+      message: clientError ? clientMessage : "The AI provider could not produce a result"
     });
   };
   app.use(errorHandler);

@@ -37,7 +37,7 @@ export async function handleMcpRequest (
     inputSchema: {
       text: z.string().min(1).max(100_000),
       title: z.string().max(500).optional(),
-      count: z.number().int().min(1).max(30).default(10),
+      count: z.number().int().min(1).max(100).default(10),
       difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed")
     }
   }, async (input) => result(await services.generateQuiz(input)));

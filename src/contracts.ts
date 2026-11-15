@@ -43,6 +43,7 @@ const rubricSchema = z.array(z.object({
 export const essayFeedbackRequestSchema = z.object({
   essay: z.string().trim().min(1).max(50_000),
   assignment: z.string().trim().max(10_000).optional(),
+  paragraphCount: z.number().int().min(1).max(100).optional(),
   rubric: rubricSchema.optional()
 });
 
@@ -65,7 +66,7 @@ export type EssayFeedbackResponse = z.infer<typeof essayFeedbackResponseSchema>;
 export const textGenerationRequestSchema = z.object({
   text: z.string().trim().min(1).max(100_000),
   title: z.string().trim().max(500).optional(),
-  count: z.number().int().min(1).max(30).default(10),
+  count: z.number().int().min(1).max(100).default(10),
   difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed")
 });
 
@@ -118,7 +119,7 @@ export const flashcardSchema = z.object({
 
 export const flashcardGenerationResponseSchema = z.object({
   title: z.string().min(1),
-  cards: z.array(flashcardSchema).min(1).max(30)
+  cards: z.array(flashcardSchema).min(1).max(100)
 });
 
 export type FlashcardGenerationResponse = z.infer<typeof flashcardGenerationResponseSchema>;

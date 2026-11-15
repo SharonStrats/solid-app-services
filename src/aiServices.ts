@@ -81,7 +81,7 @@ export function createAiServices (apiKey: string | undefined, model: string, usa
         },
         required: ["overallFeedback", "strengths", "areasToImprove", "paragraphFeedback", "needsReview"]
       },
-      "Give constructive, specific feedback on the essay. Do not rewrite the student's work. Refer to paragraphs by number and identify strengths before improvements.",
+      "Give constructive, specific feedback on the student's actual writing. Do not rewrite it. Assess each supplied rubric criterion using concrete phrases or omissions from the student's text, explain why each improvement matters, and give an actionable next step tied to the assignment. Only return paragraphFeedback for the paragraphs that actually exist; if paragraphCount is supplied, return no more than that many paragraph entries. Identify strengths before improvements.",
       request,
       (value) => essayFeedbackResponseSchema.parse(value),
       usage
