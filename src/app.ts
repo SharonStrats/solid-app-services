@@ -1,4 +1,4 @@
-import express, { type ErrorRequestHandler } from "express";
+import express, { type ErrorRequestHandler, type RequestHandler } from "express";
 import cors from "cors";
 import multer from "multer";
 import { createAiServices, type AiServices } from "./aiServices.js";
@@ -7,23 +7,29 @@ import { essayFeedbackRequestSchema, gradingRequestSchema, quizImportRequestSche
 import type { GradeAnswer } from "./grader.js";
 import { handleMcpRequest } from "./mcp.js";
 import type { UsageTracker } from "./usage.js";
+import { AiBusyError, withAiCapacity } from "./security.js";
 
 export function createApp (
   gradeAnswer: GradeAnswer,
   corsOrigins: string[],
   aiServices?: AiServices,
   usage?: UsageTracker,
-  usageMetricsToken?: string
+  usageMetricsToken?: string,
+  security: RequestHandler = (_request, response) => {
+    response.status(503).json({ error: "security_unconfigured" });
+  }
 ) {
   const app = express();
+  app.disable("x-powered-by");
   const upload = multer({ limits: { fileSize: 40 * 1024 * 1024, files: 1 } });
   const services = aiServices ?? createAiServices(undefined, "gpt-6.1-sol");
 
   app.use(cors({
     origin: corsOrigins.includes("*") ? true : corsOrigins,
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Accept", "Mcp-Session-Id"]
+    allowedHeaders: ["Content-Type", "Accept", "Mcp-Session-Id", "Authorization", "DPoP"]
   }));
+  app.use(["/api", "/mcp"], security);
   app.use(express.json({ limit: "256kb" }));
 
   app.get("/health", (_request, response) => {
@@ -48,7 +54,7 @@ export function createApp (
       return;
     }
     try {
-      response.json(await gradeAnswer(parsed.data));
+      response.json(await withAiCapacity(() => gradeAnswer(parsed.data)));
     } catch (error) {
       next(error);
     }
@@ -61,7 +67,7 @@ export function createApp (
       return;
     }
     try {
-      response.json(await services.essayFeedback(parsed.data));
+      response.json(await withAiCapacity(() => services.essayFeedback(parsed.data)));
     } catch (error) {
       next(error);
     }
@@ -73,7 +79,8 @@ export function createApp (
       return;
     }
     try {
-      response.json(await extractDocument(request.file));
+      const file = request.file;
+      response.json(await withAiCapacity(() => extractDocument(file)));
     } catch (error) {
       next(error);
     }
@@ -87,12 +94,12 @@ export function createApp (
     }
     try {
       const sourceText = parsed.data.document.blocks.map((block) => block.text).join("\n\n");
-      const generated = await services.generateQuiz({
+      const generated = await withAiCapacity(() => services.generateQuiz({
         text: sourceText,
         title: parsed.data.document.name,
         count: parsed.data.maxQuestions,
         difficulty: "mixed"
-      });
+      }));
       response.json({
         questions: generated.questions.map((question, index) => {
           const block = parsed.data.document.blocks[index % parsed.data.document.blocks.length];
@@ -125,7 +132,7 @@ export function createApp (
         return;
       }
       try {
-        response.json(await generate(parsed.data));
+        response.json(await withAiCapacity(() => generate(parsed.data)));
       } catch (error) {
         next(error);
       }
@@ -137,7 +144,7 @@ export function createApp (
   if (aiServices) {
     app.post("/mcp", async (request, response, next) => {
       try {
-        await handleMcpRequest(request, response, aiServices);
+        await withAiCapacity(() => handleMcpRequest(request, response, aiServices));
       } catch (error) {
         next(error);
       }
@@ -145,7 +152,11 @@ export function createApp (
   }
 
   const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
-    console.error(error);
+    console.error("API request failed", error instanceof Error ? error.name : "UnknownError");
+    if (error instanceof AiBusyError) {
+      response.set("Retry-After", "5").status(429).json({ error: "busy", message: error.message });
+      return;
+    }
     const message = error instanceof Error ? error.message : "The request could not be completed";
     const clientError = message.includes("supported") || message.includes("extractable") || error?.code === "LIMIT_FILE_SIZE";
     const clientMessage = error?.code === "LIMIT_FILE_SIZE"

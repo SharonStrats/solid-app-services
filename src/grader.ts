@@ -19,7 +19,7 @@ const responseSchema = {
 } as const;
 
 export function createGrader (apiKey: string | undefined, model: string, usage?: UsageTracker) {
-  const client = apiKey ? new OpenAI({ apiKey }) : undefined;
+  const client = apiKey ? new OpenAI({ apiKey, timeout: 120_000, maxRetries: 0 }) : undefined;
 
   return async function gradeAnswer(request: GradingRequest): Promise<GradingResponse> {
     if (!client) {
@@ -33,6 +33,7 @@ export function createGrader (apiKey: string | undefined, model: string, usage?:
         "Confidence is an estimate, not a guaranteed probability. Return only the requested JSON."
       ].join(" "),
       input: JSON.stringify(request),
+      max_output_tokens: 4_000,
       text: {
         format: {
           type: "json_schema",

@@ -27,6 +27,7 @@ async function structured<T> (
     model,
     instructions,
     input: JSON.stringify(input),
+    max_output_tokens: 16_000,
     text: { format: { type: "json_schema", name, strict: true, schema } }
   });
   if (response.usage) usage?.record(name, model, response.usage);
@@ -46,7 +47,7 @@ export interface AiServices {
 }
 
 export function createAiServices (apiKey: string | undefined, model: string, usage?: UsageTracker): AiServices {
-  const client = apiKey ? new OpenAI({ apiKey }) : undefined;
+  const client = apiKey ? new OpenAI({ apiKey, timeout: 120_000, maxRetries: 0 }) : undefined;
   const requireClient = (): OpenAI => {
     if (!client) throw new Error("OPENAI_API_KEY is required for AI generation");
     return client;

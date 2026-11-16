@@ -19,12 +19,13 @@ the questionnaire pane can continue using the REST API.
 
 ## Setup
 
-Requires Node 20+ and pnpm.
+Requires Node 22.13+ and pnpm. The security store uses Node's built-in SQLite
+(experimental in Node 22).
 
 ```sh
 pnpm install
 cp .env.example .env
-# Set OPENAI_API_KEY in .env
+# Set OPENAI_API_KEY and the security settings in .env
 pnpm dev
 ```
 
@@ -46,6 +47,36 @@ the server-side `.env`; `.env` is intentionally not committed.
 ## API
 
 `GET /health` returns `{ "status": "ok", "service": "solid-app-services" }`.
+
+All `/api/*` and `/mcp` requests require a Pivot-issued, DPoP-bound Solid
+access token and a fresh signed DPoP proof. Use the existing authenticated
+WebID session's `authFetch`, not plain `fetch`. Unsigned requests return 401.
+The deployment trusts only `https://sharonsolidosplayground.com/` to assert
+WebIDs hosted on that same origin. Other identity providers are not accepted.
+No shared password or API secret is embedded in the questionnaire app.
+
+Required settings:
+
+```env
+SOLID_AUTH_ISSUER=https://sharonsolidosplayground.com/
+PUBLIC_API_ORIGIN=https://quiz.sharonsolidosplayground.com
+SECURITY_DATABASE_PATH=./data/security.sqlite
+```
+
+The public origin is used to verify DPoP target URLs behind the proxy; paths
+must be preserved. Spoofed Host/forwarded headers do not change this target.
+The SQLite file stores replay IDs and request quotas across restarts. Keep it
+private, persistent, and outside the public web root. Do not delete it to
+restart the service. Run one service process; in-process concurrency limits
+are not shared across replicas.
+
+Limits: 30 authenticated requests/minute and 200/day per WebID, 1,000/day
+globally, two concurrent AI/extraction jobs per WebID, eight globally.
+Minute/day buckets use Unix time. Requests returning an error still consume
+quota. Limits return 429; this is not a guaranteed monetary budget. Configure
+a provider-side budget and monitor usage. OpenAI calls have a 120-second
+timeout, no automatic retries, and output limits of 4,000 tokens for grading
+and 16,000 for other generation.
 
 `POST /api/grade/short-answer` accepts:
 
@@ -70,9 +101,15 @@ provider failures return HTTP 502.
 
 ```sh
 curl -s http://localhost:5000/api/grade/short-answer \
+  -H "Authorization: DPoP $ACCESS_TOKEN" \
+  -H "DPoP: $FRESH_SIGNED_PROOF" \
   -H 'Content-Type: application/json' \
   -d '{"question":"Why do plants need sunlight?","studentAnswer":"They use sunlight to make food.","rubric":[{"criterion":"mentions sunlight","points":1},{"criterion":"explains that plants make food","points":1}],"maxScore":2}'
 ```
+
+The proof must bind this token to the configured public HTTPS URL and POST
+method, even when testing through the loopback transport. Never paste tokens
+into shared logs or reuse a proof. Prefer the normal browser login workflow.
 
 The endpoint is intentionally provider-shaped only at the server boundary:
 the client receives the normalized grading contract rather than raw OpenAI
@@ -108,8 +145,8 @@ can review and edit them before saving.
 - `generate_flashcards`
 
 The MCP tools call the same validated service functions as the REST routes.
-MCP authentication should be added before exposing this endpoint to external
-clients.
+MCP has the same authentication and quota middleware as REST. It remains
+unpublished by the quiz proxy; browser clients use REST.
 
 ## Deploying to a droplet
 
@@ -140,6 +177,9 @@ PORT=5000
 OPENAI_API_KEY=your-server-side-key
 OPENAI_MODEL=gpt-6.1-sol
 CORS_ORIGINS=https://quiz.sharonsolidosplayground.com
+SOLID_AUTH_ISSUER=https://sharonsolidosplayground.com/
+PUBLIC_API_ORIGIN=https://quiz.sharonsolidosplayground.com
+SECURITY_DATABASE_PATH=/var/lib/solid-app-services/security.sqlite
 USAGE_METRICS_TOKEN=replace-with-a-long-random-secret
 ```
 
@@ -171,9 +211,9 @@ curl http://127.0.0.1:5000/health
 
 Configure Caddy or Nginx to proxy the quiz app's `/api/` and `/health` paths
 to `http://127.0.0.1:5000`, restrict `CORS_ORIGINS` to the exact quiz origin,
-and keep port 5000 closed in the firewall. Before exposing this beyond your
-own quiz app, add caller authentication, rate limiting, request logging that
-omits student content, and provider usage monitoring.
+and keep port 5000 closed in the firewall. Authentication and usage controls
+apply even to loopback requests. Keep metrics and MCP private. Do not log
+tokens, proofs, request bodies, uploaded content, or provider keys.
 
 ## Realtime quiz rooms
 

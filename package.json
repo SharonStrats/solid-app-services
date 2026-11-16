@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -14,14 +14,16 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run tests"
   },
   "dependencies": {
+    "@solid/access-token-verifier": "2.1.2",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "fflate": "^0.8.3",
+    "jose": "^5.10.0",
     "mammoth": "^1.13.0",
     "multer": "^2.5.0",
     "openai": "^6.9.0",
