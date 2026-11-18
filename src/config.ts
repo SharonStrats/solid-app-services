@@ -10,12 +10,13 @@ export interface Config {
   usageMetricsToken: string | undefined;
   inputCostPerMillion: number;
   outputCostPerMillion: number;
+  realtimeTicketSecret: string;
   security: SecurityOptions;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  if (!env.SOLID_AUTH_ISSUER || !env.PUBLIC_API_ORIGIN || !env.SECURITY_DATABASE_PATH) {
-    throw new Error("SOLID_AUTH_ISSUER, PUBLIC_API_ORIGIN and SECURITY_DATABASE_PATH are required");
+  if (!env.SOLID_AUTH_ISSUER || !env.PUBLIC_API_ORIGIN || !env.SECURITY_DATABASE_PATH || !env.REALTIME_TICKET_SECRET) {
+    throw new Error("SOLID_AUTH_ISSUER, PUBLIC_API_ORIGIN, SECURITY_DATABASE_PATH and REALTIME_TICKET_SECRET are required");
   }
   const allowInsecureLocalOrigins = env.ALLOW_INSECURE_LOCAL_ORIGINS === "true";
   securityOrigin(env.SOLID_AUTH_ISSUER, allowInsecureLocalOrigins);
@@ -43,6 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ,
     usageMetricsToken: env.USAGE_METRICS_TOKEN?.trim() || undefined,
     inputCostPerMillion: Number(env.OPENAI_INPUT_COST_PER_MILLION ?? 0),
-    outputCostPerMillion: Number(env.OPENAI_OUTPUT_COST_PER_MILLION ?? 0)
+    outputCostPerMillion: Number(env.OPENAI_OUTPUT_COST_PER_MILLION ?? 0),
+    realtimeTicketSecret: env.REALTIME_TICKET_SECRET
   };
 }

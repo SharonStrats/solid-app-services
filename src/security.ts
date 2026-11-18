@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { DatabaseSync } from "node:sqlite";
 import { createRemoteJWKSet, decodeJwt } from "jose";
+import { SignJWT } from "jose";
 import { createSolidTokenVerifier } from "@solid/access-token-verifier";
 import { IssuerKeySetCache } from "@solid/access-token-verifier/dist/class/IssuerKeySetCache.js";
 import { WebIDIssuersCache } from "@solid/access-token-verifier/dist/class/WebIDIssuersCache.js";
@@ -20,6 +21,20 @@ let active = 0;
 const users = new Map<string, number>();
 
 export class AiBusyError extends Error {}
+
+export function currentCaller(): string | undefined {
+  return caller.getStore();
+}
+
+export async function createRealtimeTicket(webId: string, secret: string): Promise<string> {
+  return new SignJWT({ webid: webId, scope: "realtime" })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuer("solid-app-services")
+    .setSubject(webId)
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(new TextEncoder().encode(secret));
+}
 
 export async function withAiCapacity<T>(task: () => Promise<T>): Promise<T> {
   const webId = caller.getStore() ?? "internal";

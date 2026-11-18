@@ -95,11 +95,12 @@ chat delivery. Inbox notices persist, but their links can expire with realtime
 history. Opening Inbox refreshes notices; up to 100 listed resources are read
 in batches, with unreadable resources reported without hiding accessible ones.
 
-**This is not authenticated private messaging.** WebIDs and friend lists are
-self-reported by clients, just like the existing prototype player identities.
-Do not use it for sensitive conversations or deploy it publicly as secure
-friend chat. Before public deployment, verify Solid login/session credentials
-server-side and derive authorization from verified profile relationships.
+Connections now require a short-lived server-signed ticket issued through the
+authenticated Solid WebID API, so the active WebID is verified server-side.
+Friend lists and relationship permissions are still self-reported by clients,
+and message history remains in memory. Do not use it for sensitive
+conversations until friend relationships are derived from verified profile
+data.
 
 The realtime process must be running separately from the AI service:
 `npm run dev` in this directory (port 5100). Production requires the

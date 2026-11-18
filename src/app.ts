@@ -7,7 +7,7 @@ import { diagramDrawingEvaluationRequestSchema, essayFeedbackRequestSchema, grad
 import type { GradeAnswer } from "./grader.js";
 import { handleMcpRequest } from "./mcp.js";
 import type { UsageTracker } from "./usage.js";
-import { AiBusyError, withAiCapacity } from "./security.js";
+import { AiBusyError, createRealtimeTicket, currentCaller, withAiCapacity } from "./security.js";
 
 export function createApp (
   gradeAnswer: GradeAnswer,
@@ -17,7 +17,8 @@ export function createApp (
   usageMetricsToken?: string,
   security: RequestHandler = (_request, response) => {
     response.status(503).json({ error: "security_unconfigured" });
-  }
+  },
+  realtimeTicketSecret?: string
 ) {
   const app = express();
   app.disable("x-powered-by");
@@ -35,6 +36,14 @@ export function createApp (
 
   app.get("/health", (_request, response) => {
     response.json({ status: "ok", service: "solid-app-services" });
+  });
+  app.post("/api/realtime/ticket", async (_request, response) => {
+    const webId = currentCaller();
+    if (!webId || !realtimeTicketSecret) {
+      response.status(503).json({ error: "realtime_unconfigured" });
+      return;
+    }
+    response.json({ ticket: await createRealtimeTicket(webId, realtimeTicketSecret) });
   });
   app.get("/metrics/usage", (request, response) => {
     if (!usage || !usageMetricsToken || request.get("authorization") !== `Bearer ${usageMetricsToken}`) {

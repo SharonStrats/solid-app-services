@@ -4,18 +4,29 @@ import http from "node:http";
 import { Server } from "socket.io";
 import { LobbyStore, type Lobby } from "./lobbyStore.js";
 import { FriendChatStore, type FriendConversation } from "./friendChat.js";
+import { verifyRealtimeTicket } from "./ticket.js";
 
 const port = Number(process.env.PORT ?? 5100);
 const host = process.env.HOST ?? "0.0.0.0";
 const origins = (process.env.FRONTEND_ORIGINS ??
   "http://localhost:3200,http://localhost:4200,http://localhost:5173")
   .split(",").map(origin => origin.trim()).filter(Boolean);
+const ticketSecret = process.env.REALTIME_TICKET_SECRET;
+if (!ticketSecret) throw new Error("REALTIME_TICKET_SECRET is required");
 const store = new LobbyStore();
 const friendChat = new FriendChatStore();
 const app = express();
 app.get("/health", (_request, response) => response.json({ status: "ok", service: "solid-quiz-realtime" }));
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: origins } });
+io.use((socket, next) => {
+  try {
+    socket.data.webId = verifyRealtimeTicket(socket.handshake.auth?.ticket, ticketSecret);
+    next();
+  } catch (error) {
+    next(error instanceof Error ? error : new Error("Realtime login required."));
+  }
+});
 
 function publish (lobby: Lobby): void {
   io.to(lobby.id).emit("gameState", {
@@ -39,7 +50,7 @@ io.on("connection", socket => {
   };
   socket.on("registerFriendChat", (input: unknown, reply?: (result: { error?: string }) => void) => {
     try {
-      friendChat.register(socket.id, input);
+      friendChat.register(socket.id, { ...(input as object), webId: socket.data.webId });
       if (typeof reply === "function") reply({});
       for (const conversation of friendChat.conversationsForSocket(socket.id)) socket.emit("friendConversation", conversation);
       publishPresence();
@@ -110,13 +121,13 @@ io.on("connection", socket => {
       socket.emit("gameError", { message: "A valid quiz or study deck is required." });
       return;
     }
-    const lobby = store.create(socket.id, input);
+    const lobby = store.create(socket.id, { ...input, webId: socket.data.webId });
     socket.join(lobby.id);
     socket.emit("gameCreated", { lobbyId: lobby.id, playerId: lobby.players[0].id });
     publish(lobby);
   });
   socket.on("joinGame", (input: { name: string, webId?: string, lobbyId: string }) => {
-    const lobby = store.join(socket.id, input);
+    const lobby = store.join(socket.id, { ...input, webId: socket.data.webId });
     if (!lobby) {
       socket.emit("gameError", { message: "Game not found, already started, or full." });
       return;
