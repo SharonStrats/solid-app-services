@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { calculateJwkThumbprint, createRemoteJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
-import { apiSecurity, createPivotVerifier, SecurityStore, withAiCapacity } from "../src/security.js";
+import { apiSecurity, createPivotVerifier, securityOrigin, SecurityStore, withAiCapacity } from "../src/security.js";
 import { createApp } from "../src/app.js";
 
 const issuer = "https://sharonsolidosplayground.com/";
@@ -46,6 +46,13 @@ async function credentials(tokenClaims: Record<string, unknown> = {}, proofClaim
 }
 
 describe("Pivot Solid OIDC authentication", () => {
+  it("allows HTTP only for explicitly enabled localhost development origins", () => {
+    expect(securityOrigin("http://localhost:3100/", true)).toBe("http://localhost:3100");
+    expect(securityOrigin("http://127.0.0.1:5001", true)).toBe("http://127.0.0.1:5001");
+    expect(() => securityOrigin("http://localhost:3100/")).toThrow();
+    expect(() => securityOrigin("http://example.test/", true)).toThrow();
+  });
+
   it("verifies signed tokens and URL-bound proofs; ignores the query, not proxy headers", async () => {
     const { authorization, proof } = await credentials();
     expect(await verify(authorization, proof, "POST", `${path}?view=1`)).toMatchObject({

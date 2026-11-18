@@ -3,7 +3,7 @@ import cors from "cors";
 import multer from "multer";
 import { createAiServices, type AiServices } from "./aiServices.js";
 import { extractDocument } from "./documentExtractor.js";
-import { essayFeedbackRequestSchema, gradingRequestSchema, quizImportRequestSchema, textGenerationRequestSchema } from "./contracts.js";
+import { diagramDrawingEvaluationRequestSchema, essayFeedbackRequestSchema, gradingRequestSchema, promptGenerationRequestSchema, quizImportRequestSchema, textGenerationRequestSchema } from "./contracts.js";
 import type { GradeAnswer } from "./grader.js";
 import { handleMcpRequest } from "./mcp.js";
 import type { UsageTracker } from "./usage.js";
@@ -26,11 +26,12 @@ export function createApp (
 
   app.use(cors({
     origin: corsOrigins.includes("*") ? true : corsOrigins,
+    credentials: true,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept", "Mcp-Session-Id", "Authorization", "DPoP"]
   }));
   app.use(["/api", "/mcp"], security);
-  app.use(express.json({ limit: "256kb" }));
+  app.use(express.json({ limit: "12mb" }));
 
   app.get("/health", (_request, response) => {
     response.json({ status: "ok", service: "solid-app-services" });
@@ -50,6 +51,23 @@ export function createApp (
         error: "invalid_request",
         message: "Request did not match the short-answer grading contract",
         details: parsed.error.issues
+      });
+
+      app.post("/api/grade/diagram-drawing", async (request, response, next) => {
+        const parsed = diagramDrawingEvaluationRequestSchema.safeParse(request.body);
+        if (!parsed.success) {
+          response.status(400).json({
+            error: "invalid_request",
+            message: "Request did not match the diagram-drawing evaluation contract",
+            details: parsed.error.issues
+          });
+          return;
+        }
+        try {
+          response.json(await withAiCapacity(() => services.evaluateDiagramDrawing(parsed.data)));
+        } catch (error) {
+          next(error);
+        }
       });
       return;
     }
@@ -140,6 +158,18 @@ export function createApp (
   };
   generationRoute("/api/generate/quiz", services.generateQuiz);
   generationRoute("/api/generate/flashcards", services.generateFlashcards);
+  app.post("/api/generate/english-prompts", async (request, response, next) => {
+    const parsed = promptGenerationRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "invalid_request", details: parsed.error.issues });
+      return;
+    }
+    try {
+      response.json(await withAiCapacity(() => services.generatePrompts(parsed.data)));
+    } catch (error) {
+      next(error);
+    }
+  });
 
   if (aiServices) {
     app.post("/mcp", async (request, response, next) => {
@@ -152,7 +182,10 @@ export function createApp (
   }
 
   const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
-    console.error("API request failed", error instanceof Error ? error.name : "UnknownError");
+    console.error("API request failed", {
+      name: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? error.message : String(error)
+    });
     if (error instanceof AiBusyError) {
       response.set("Retry-After", "5").status(429).json({ error: "busy", message: error.message });
       return;

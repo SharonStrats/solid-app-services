@@ -1,11 +1,20 @@
 import OpenAI from "openai";
 import type { UsageTracker } from "./usage.js";
 import {
-  essayFeedbackResponseSchema,
+  assembleEssayFeedback, assessmentRubric, evidenceSentences, essayAssessmentJsonSchema, essayScoringInstructions,
+  essayTutoringInstructions, validateEssayAssessment, writingTaskGuidance
+} from "./essayAssessment.js";
+import {
   flashcardGenerationResponseSchema,
   quizGenerationResponseSchema,
   type EssayFeedbackRequest,
   type EssayFeedbackResponse,
+  promptGenerationResponseSchema,
+  type PromptGenerationRequest,
+  type PromptGenerationResponse,
+  diagramDrawingEvaluationResponseSchema,
+  type DiagramDrawingEvaluationRequest,
+  type DiagramDrawingEvaluationResponse,
   type FlashcardGenerationResponse,
   type QuizGenerationResponse,
   type TextGenerationRequest
@@ -42,8 +51,10 @@ async function structured<T> (
 
 export interface AiServices {
   essayFeedback: (request: EssayFeedbackRequest) => Promise<EssayFeedbackResponse>;
+  generatePrompts: (request: PromptGenerationRequest) => Promise<PromptGenerationResponse>;
   generateQuiz: (request: TextGenerationRequest) => Promise<QuizGenerationResponse>;
   generateFlashcards: (request: TextGenerationRequest) => Promise<FlashcardGenerationResponse>;
+  evaluateDiagramDrawing: (request: DiagramDrawingEvaluationRequest) => Promise<DiagramDrawingEvaluationResponse>;
 }
 
 export function createAiServices (apiKey: string | undefined, model: string, usage?: UsageTracker): AiServices {
@@ -54,7 +65,15 @@ export function createAiServices (apiKey: string | undefined, model: string, usa
   };
 
   return {
-    essayFeedback: (request) => structured(
+    essayFeedback: async (request) => {
+      const rubric = assessmentRubric(request);
+      const analysis = await structured(
+        requireClient(), model, "essay_assessment", essayAssessmentJsonSchema(request),
+        `${essayScoringInstructions}\n${writingTaskGuidance(request)}`,
+        { ...request, rubric, evidenceSentences: evidenceSentences(request.essay) },
+        value => validateEssayAssessment(value, request), usage
+      );
+      return structured(
       requireClient(),
       model,
       "essay_feedback",
@@ -64,7 +83,27 @@ export function createAiServices (apiKey: string | undefined, model: string, usa
         properties: {
           overallFeedback: { type: "string" },
           strengths: { type: "array", items: { type: "string" } },
-          areasToImprove: { type: "array", items: { type: "string" } },
+          areasToImprove: { type: "array", minItems: 1, maxItems: 2, items: { type: "string" } },
+          criterionFeedback: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                criterion: { type: "string" },
+                assessment: { type: "string" },
+                nextStep: { type: "string" },
+                exampleRevision: { type: "string" }
+              },
+              required: [
+                "criterion",
+                "assessment",
+                "nextStep",
+                "exampleRevision"
+              ]
+            }
+          },
+          nextChallenge: { type: "string" },
           paragraphFeedback: {
             type: "array",
             items: {
@@ -80,11 +119,55 @@ export function createAiServices (apiKey: string | undefined, model: string, usa
           },
           needsReview: { type: "boolean" }
         },
-        required: ["overallFeedback", "strengths", "areasToImprove", "paragraphFeedback", "needsReview"]
+        required: ["overallFeedback", "strengths", "areasToImprove", "criterionFeedback", "nextChallenge", "paragraphFeedback", "needsReview"]
       },
-      "Give constructive, specific feedback on the student's actual writing. Do not rewrite it. Assess each supplied rubric criterion using concrete phrases or omissions from the student's text, explain why each improvement matters, and give an actionable next step tied to the assignment. Only return paragraphFeedback for the paragraphs that actually exist; if paragraphCount is supplied, return no more than that many paragraph entries. Identify strengths before improvements.",
+      `${essayTutoringInstructions}\n${writingTaskGuidance(request)}`,
+      { ...request, rubric, assessment: analysis },
+      (value) => assembleEssayFeedback(value, analysis, request),
+      usage
+      );
+    },
+    generatePrompts: (request) => structured(
+      requireClient(),
+      model,
+      "english_prompt_generation",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          prompts: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                title: { type: "string" },
+                instruction: { type: "string" },
+                writingType: { type: "string" },
+                suggestedWordCount: { type: "string" },
+                skills: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 8 },
+                rubric: {
+                  type: "array",
+                  maxItems: 8,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: { criterion: { type: "string" }, description: { type: "string" } },
+                    required: ["criterion", "description"]
+                  }
+                }
+              },
+              required: ["title", "instruction", "writingType", "suggestedWordCount", "skills", "rubric"]
+            }
+          }
+        },
+        required: ["prompts"]
+      },
+      "Create age-appropriate English writing prompts for the Victorian Curriculum. Generate distinct prompts for the requested topic and writing type. Match the year level, difficulty, and word range. Each instruction must be specific enough to answer, and each skills list and rubric must describe what the student should practise. Do not require research or specialist knowledge unless the request asks for it.",
       request,
-      (value) => essayFeedbackResponseSchema.parse(value),
+      (value) => promptGenerationResponseSchema.parse(value),
       usage
     ),
     generateQuiz: (request) => structured(
@@ -149,6 +232,31 @@ export function createAiServices (apiKey: string | undefined, model: string, usa
       "Create concise, useful study flashcards from the supplied source. Test important concepts, avoid duplicate cards, and include source references.",
       request,
       (value) => flashcardGenerationResponseSchema.parse(value),
+      usage
+    ),
+    evaluateDiagramDrawing: (request) => structured(
+      requireClient(),
+      model,
+      "diagram_drawing_evaluation",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          decision: { type: "string", enum: ["correct", "possibly-correct", "incorrect", "needs-review"] },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+          feedback: { type: "string" },
+          evidence: { type: "array", items: { type: "string" }, maxItems: 10 },
+          needsReview: { type: "boolean" }
+        },
+        required: ["decision", "confidence", "feedback", "evidence", "needsReview"]
+      },
+      "Compare the learner's drawing with the reference diagram and the question. Determine whether the learner appears to have completed the requested diagram task. Treat visual ambiguity, missing rubric detail, and uncertain interpretation as needs-review or possibly-correct rather than claiming certainty. Do not infer correctness from visual similarity alone when the prompt does not specify what should be drawn. Return concise evidence grounded in visible features.",
+      {
+        question: request.question,
+        referenceImage: request.referenceImage,
+        answerImage: request.answerImage
+      },
+      (value) => diagramDrawingEvaluationResponseSchema.parse(value),
       usage
     )
   };

@@ -12,6 +12,7 @@ export interface SecurityOptions {
   issuer: string;
   publicOrigin: string;
   databasePath: string;
+  allowInsecureLocalOrigins?: boolean;
 }
 
 const caller = new AsyncLocalStorage<string>();
@@ -37,8 +38,16 @@ export async function withAiCapacity<T>(task: () => Promise<T>): Promise<T> {
 }
 
 export function httpsOrigin(value: string): string {
+  return securityOrigin(value);
+}
+
+export function securityOrigin(value: string, allowInsecureLocalOrigins = false): string {
   const url = new URL(value);
-  if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+  const isAllowedHttpLocalOrigin = allowInsecureLocalOrigins &&
+    url.protocol === "http:" &&
+    (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+  if ((!isAllowedHttpLocalOrigin && url.protocol !== "https:") ||
+      url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
     throw new Error("Security origins must be HTTPS origins without a path, credentials, query or fragment");
   }
   return url.origin;
@@ -70,9 +79,15 @@ class PivotKeys extends IssuerKeySetCache {
 export function createPivotVerifier(options: SecurityOptions, keys = createRemoteJWKSet(
   new URL("/.oidc/jwks", options.issuer), { timeoutDuration: 5_000 }
 )) {
-  const issuer = `${httpsOrigin(options.issuer)}/`;
+  const issuer = `${securityOrigin(options.issuer, options.allowInsecureLocalOrigins)}/`;
   if (options.issuer !== issuer) throw new Error("The Pivot issuer must include its trailing slash");
-  const origin = httpsOrigin(options.publicOrigin);
+  const origin = securityOrigin(options.publicOrigin, options.allowInsecureLocalOrigins);
+  const targetOrigins = [origin];
+  if (options.allowInsecureLocalOrigins && ["localhost", "127.0.0.1"].includes(new URL(origin).hostname)) {
+    const alias = new URL(origin);
+    alias.hostname = alias.hostname === "localhost" ? "127.0.0.1" : "localhost";
+    targetOrigins.push(alias.origin);
+  }
   const verify = createSolidTokenVerifier(undefined, new PivotKeys(issuer, keys), new PivotWebIds(issuer));
   return async (authorization: string, proof: string, method: string, path: string) => {
     if (!/^DPoP [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/i.test(authorization) ||
@@ -82,21 +97,31 @@ export function createPivotVerifier(options: SecurityOptions, keys = createRemot
     const token = decodeJwt(authorization.slice(5));
     const claims = decodeJwt(proof);
     const now = Math.floor(Date.now() / 1000);
-    if (token.iss !== issuer || typeof token.client_id !== "string" || !token.client_id ||
-        typeof token.exp !== "number" || token.exp <= now ||
-        typeof claims.ath !== "string" || !claims.ath ||
-        typeof claims.jti !== "string" || !claims.jti || claims.jti.length > 256 ||
-        typeof claims.iat !== "number" || claims.iat < now - 60 || claims.iat > now + 5 ||
-        !path.startsWith("/") || path.startsWith("//")) {
-      throw new Error("Invalid token or proof claims");
+    if (token.iss !== issuer) {
+      throw new Error(`Token issuer mismatch: received ${String(token.iss ?? "(missing)")}; expected ${issuer}`);
     }
-    const target = new URL(path, origin);
-    if (target.origin !== origin) throw new Error("Invalid API target");
-    target.search = "";
-    target.hash = "";
-    const verified = await verify(authorization, {
-      header: proof, method, url: target.href, isDuplicateJTI: () => false
-    });
+    if (typeof token.client_id !== "string" || !token.client_id) throw new Error("Token client_id is missing");
+    if (typeof token.exp !== "number" || token.exp <= now) throw new Error("Token is expired or has no valid expiry");
+    if (typeof claims.ath !== "string" || !claims.ath) throw new Error("DPoP proof is missing the access-token hash");
+    if (typeof claims.jti !== "string" || !claims.jti || claims.jti.length > 256) throw new Error("DPoP proof has no valid replay identifier");
+    if (typeof claims.iat !== "number" || claims.iat < now - 60 || claims.iat > now + 5) throw new Error("DPoP proof timestamp is outside the allowed clock window");
+    if (!path.startsWith("/") || path.startsWith("//")) throw new Error("API request path is invalid");
+    let verified: Awaited<ReturnType<typeof verify>> | undefined;
+    let verificationError: unknown;
+    for (const targetOrigin of targetOrigins) {
+      const target = new URL(path, targetOrigin);
+      target.search = "";
+      target.hash = "";
+      try {
+        verified = await verify(authorization, {
+          header: proof, method, url: target.href, isDuplicateJTI: () => false
+        });
+        break;
+      } catch (error) {
+        verificationError = error;
+      }
+    }
+    if (!verified) throw verificationError instanceof Error ? verificationError : new Error("Invalid API target");
     const cnf = verified.cnf;
     if (!cnf || typeof cnf !== "object" || !("jkt" in cnf) || typeof cnf.jkt !== "string") {
       throw new Error("Missing proof key binding");
@@ -168,10 +193,14 @@ export class SecurityStore {
 export function createApiSecurity(options: SecurityOptions): RequestHandler {
   const verify = createPivotVerifier(options);
   const store = new SecurityStore(options.databasePath);
-  return apiSecurity(verify, store);
+  return apiSecurity(verify, store, options.allowInsecureLocalOrigins === true);
 }
 
-export function apiSecurity(verify: ReturnType<typeof createPivotVerifier>, store: SecurityStore): RequestHandler {
+export function apiSecurity(
+  verify: ReturnType<typeof createPivotVerifier>,
+  store: SecurityStore,
+  exposeDevelopmentErrors = false
+): RequestHandler {
   let verifying = 0;
   return async (request, response, next) => {
     response.set("Cache-Control", "no-store");
@@ -189,9 +218,15 @@ export function apiSecurity(verify: ReturnType<typeof createPivotVerifier>, stor
     verifying++;
     try {
       identity = await verify(authorization, proof, request.method, request.originalUrl);
-    } catch {
-      console.warn("API authentication rejected");
-      response.set("WWW-Authenticate", 'DPoP error="invalid_token"').status(401).json({ error: "invalid_token", message: "Your WebID session could not be verified. Please log in again." });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Unknown verification error";
+      console.warn("API authentication rejected", reason);
+      response.set("WWW-Authenticate", 'DPoP error="invalid_token"').status(401).json({
+        error: "invalid_token",
+        message: exposeDevelopmentErrors
+          ? `Local development authentication failed: ${reason}`
+          : "Your WebID session could not be verified. Please log in again."
+      });
       return;
     } finally {
       verifying--;

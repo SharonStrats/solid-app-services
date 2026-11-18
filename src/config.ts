@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { httpsOrigin, type SecurityOptions } from "./security.js";
+import { securityOrigin, type SecurityOptions } from "./security.js";
 
 export interface Config {
   host: string;
@@ -17,8 +17,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (!env.SOLID_AUTH_ISSUER || !env.PUBLIC_API_ORIGIN || !env.SECURITY_DATABASE_PATH) {
     throw new Error("SOLID_AUTH_ISSUER, PUBLIC_API_ORIGIN and SECURITY_DATABASE_PATH are required");
   }
-  httpsOrigin(env.SOLID_AUTH_ISSUER);
-  httpsOrigin(env.PUBLIC_API_ORIGIN);
+  const allowInsecureLocalOrigins = env.ALLOW_INSECURE_LOCAL_ORIGINS === "true";
+  securityOrigin(env.SOLID_AUTH_ISSUER, allowInsecureLocalOrigins);
+  securityOrigin(env.PUBLIC_API_ORIGIN, allowInsecureLocalOrigins);
   const port = Number(env.PORT ?? 5000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("PORT must be an integer between 1 and 65535");
@@ -28,7 +29,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     security: {
       issuer: env.SOLID_AUTH_ISSUER,
       publicOrigin: env.PUBLIC_API_ORIGIN,
-      databasePath: env.SECURITY_DATABASE_PATH
+      databasePath: env.SECURITY_DATABASE_PATH,
+      allowInsecureLocalOrigins
     },
     host: env.HOST?.trim() || "127.0.0.1",
     port,

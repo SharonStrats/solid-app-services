@@ -46,6 +46,52 @@ the server-side `.env`; `.env` is intentionally not committed.
 
 ## API
 
+### English writing assessment and calibration
+
+Essay feedback uses two provider calls: an evidence/scoring pass against fixed
+five-level descriptors for each of the seven English criteria, then a tutoring
+pass that generates explanations and revision activities, not scores. The service
+attaches the established scores, verified quotations and confidence directly.
+The scoring pass classifies existing
+openings/conclusions and records quoted language errors with rules and corrections.
+The service rejects invented scoring quotations, mismatched criteria, changed
+scores, and detected unsupported numerical/research examples rather than returning
+them as successful feedback. These checks do not prove every judgement correct;
+AI feedback remains advisory and needs human calibration. Low-confidence or
+ambiguous assessments set `needsReview`.
+
+The public response shape is unchanged. The two calls add latency and provider
+cost; both are recorded separately in usage metrics. `pnpm dev` reloads source
+changes automatically; deployments using `pnpm start` must build and restart.
+
+Offline regression tests use mocked provider output; they do not measure actual
+marking quality. For an explicit, credit-consuming consistency check:
+
+```sh
+ESSAY_CALIBRATION_FILE=/absolute/path/to/human-marked-responses.json \
+  pnpm exec vitest run tests/essayCalibration.test.ts
+```
+
+The file is an array of `{ "id": "...", "provenance": "...", "request": {...},
+"referenceScores": [2, 2, 2, 2, 2, 3, 2] }`. Each `request` uses the essay
+endpoint's contract, including the complete assignment, format, word range and
+year level. Reference scores must be in rubric order (the seven default English
+criteria when no rubric is supplied). Record who/how the work was assessed in
+`provenance`; illustrative scores are not externally moderated curriculum grades.
+Use only consented, de-identified writing approved for sending to the provider.
+The included `tests/fixtures/essay-calibration-homework.json` records the user's
+illustrative homework paragraph assessment, not an independently moderated mark.
+It can be used as an initial reproducibility check, not as the whole reference set.
+
+The check makes five independent assessments per response, prints criterion
+scores, spreads and mean absolute differences from reference marks, and fails if
+a criterion's spread or mean absolute error exceeds one mark. These are initial
+engineering tolerances, not validated educational standards. Begin with 10–20
+independently marked responses spanning weak through excellent work, inspect
+disagreements, and refine descriptors with a qualified teacher before using
+scores as grades. The check is skipped by default and was not a provider-based
+validation merely because the normal unit suite passed.
+
 `GET /health` returns `{ "status": "ok", "service": "solid-app-services" }`.
 
 All `/api/*` and `/mcp` requests require a Pivot-issued, DPoP-bound Solid

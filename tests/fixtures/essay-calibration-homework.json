@@ -1,0 +1,21 @@
+[
+  {
+    "id": "homework-developing-paragraph",
+    "provenance": "User-supplied illustrative assessment: 15/35. Not an externally moderated Victorian Curriculum grade.",
+    "request": {
+      "essay": "I think homework is bad for students because it gives them too much work and makes them tired. Students already go to school all day so why do they need more work when they get home. Homework can be good sometimes because you might learn something but most people just copy the answers or don't do it. Teachers give homework because they think it helps but I don't think they understand how much other things students have to do. For example sport and spending time with family. Also some students have jobs and can't always do homework. Homework is probably not useful and schools should just stop giving it because students need more free time and it is not fair to make them do more school work at home.",
+      "assignment": "Year level: 9\nWriting format: paragraph\nExpected length: 100–180 words\nTask: Argue whether homework helps students learn or creates unnecessary pressure.",
+      "paragraphCount": 1,
+      "rubric": [
+        { "criterion": "Ideas and content: relevant, clear and sufficiently developed ideas", "points": 5 },
+        { "criterion": "Structure: logical organisation appropriate to the requested writing format", "points": 5 },
+        { "criterion": "Evidence and examples: relevant support that is specific and explained", "points": 5 },
+        { "criterion": "Vocabulary: appropriate, precise and varied language", "points": 5 },
+        { "criterion": "Sentence construction: clear, effective and appropriately varied sentences", "points": 5 },
+        { "criterion": "Grammar and punctuation: accurate spelling, grammar, punctuation and sentence conventions", "points": 5 },
+        { "criterion": "Critical thinking: explanation, analysis and evaluation appropriate to the task", "points": 5 }
+      ]
+    },
+    "referenceScores": [2, 2, 2, 2, 2, 3, 2]
+  }
+]
