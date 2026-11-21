@@ -58,6 +58,15 @@ test("group participants receive replies, while outsiders cannot join or see his
   assert.equal(store.conversationsForSocket("other-again")[0].id, conversation.id);
 });
 
+test("creator can name a conversation and invalid names are rejected", () => {
+  const store = new FriendChatStore();
+  store.register("alice", { webId: alice, name: "Alice", friends: [bob] });
+  store.register("bob", { webId: bob, name: "Bob", friends: [alice] });
+  const conversation = store.createConversation("alice", { recipients: [bob], title: "Study group" });
+  assert.equal(conversation.title, "Study group");
+  assert.throws(() => store.createConversation("alice", { recipients: [bob], title: "x".repeat(101) }), /100/);
+});
+
 test("conversation participants can add friends and leave, while creators can remove others", () => {
   const store = new FriendChatStore();
   store.register("alice", { webId: alice, name: "Alice", friends: [bob, other, dave] });

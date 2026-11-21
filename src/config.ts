@@ -11,6 +11,9 @@ export interface Config {
   inputCostPerMillion: number;
   outputCostPerMillion: number;
   realtimeTicketSecret: string;
+  accessRequestEmailTo: string | undefined;
+  accessRequestEmailFrom: string | undefined;
+  resendApiKey: string | undefined;
   security: SecurityOptions;
 }
 
@@ -31,7 +34,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       issuer: env.SOLID_AUTH_ISSUER,
       publicOrigin: env.PUBLIC_API_ORIGIN,
       databasePath: env.SECURITY_DATABASE_PATH,
-      allowInsecureLocalOrigins
+      allowInsecureLocalOrigins,
+      quotaTimeZone: env.QUOTA_TIME_ZONE?.trim() || undefined
     },
     host: env.HOST?.trim() || "127.0.0.1",
     port,
@@ -45,6 +49,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     usageMetricsToken: env.USAGE_METRICS_TOKEN?.trim() || undefined,
     inputCostPerMillion: Number(env.OPENAI_INPUT_COST_PER_MILLION ?? 0),
     outputCostPerMillion: Number(env.OPENAI_OUTPUT_COST_PER_MILLION ?? 0),
-    realtimeTicketSecret: env.REALTIME_TICKET_SECRET
+    realtimeTicketSecret: env.REALTIME_TICKET_SECRET,
+    accessRequestEmailTo: env.ACCESS_REQUEST_EMAIL_TO?.trim() || undefined,
+    accessRequestEmailFrom: env.ACCESS_REQUEST_EMAIL_FROM?.trim() || undefined,
+    resendApiKey: env.RESEND_API_KEY?.trim() || undefined
   };
 }

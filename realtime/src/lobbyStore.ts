@@ -107,6 +107,18 @@ export class LobbyStore {
     return lobby;
   }
 
+  cancel (socketId: string): Lobby | undefined {
+    const entry = this.socketPlayers.get(socketId);
+    const lobby = entry && this.lobbies.get(entry.lobbyId);
+    if (!lobby || lobby.hostPlayerId !== entry.playerId ||
+      (lobby.status !== "waiting" && lobby.status !== "playing")) return undefined;
+    for (const [playerSocketId, playerEntry] of this.socketPlayers) {
+      if (playerEntry.lobbyId === lobby.id) this.socketPlayers.delete(playerSocketId);
+    }
+    this.lobbies.delete(lobby.id);
+    return lobby;
+  }
+
   answer (socketId: string, questionIndex: number, score: number): Lobby | undefined {
     const entry = this.socketPlayers.get(socketId);
     const lobby = entry && this.lobbies.get(entry.lobbyId);

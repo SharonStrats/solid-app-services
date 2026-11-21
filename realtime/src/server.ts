@@ -150,6 +150,14 @@ io.on("connection", socket => {
     if (!lobby) socket.emit("gameError", { message: "Only the host can start the game." });
     else publish(lobby);
   });
+  socket.on("cancelGame", () => {
+    const lobby = store.cancel(socket.id);
+    if (!lobby) {
+      socket.emit("gameError", { message: "Only the host can cancel an active game." });
+      return;
+    }
+    io.to(lobby.id).emit("gameCancelled");
+  });
   socket.on("advanceQuestion", () => {
     const lobby = store.advance(socket.id);
     if (!lobby) socket.emit("gameError", { message: "The current question is not complete or cannot be advanced." });

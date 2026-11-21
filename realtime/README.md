@@ -95,6 +95,19 @@ chat delivery. Inbox notices persist, but their links can expire with realtime
 history. Opening Inbox refreshes notices; up to 100 listed resources are read
 in batches, with unreadable resources reported without hiding accessible ones.
 
+### Chat bubble themes
+
+The Questionnaire pane keeps bubble themes as a presentation-only preference.
+Messages remain plain text in the realtime protocol, so changing a theme does
+not change delivery, history, or compatibility with other clients. Theme
+definitions live in
+`workspaces/questionaire-pane/src/chat/themes/registry.ts`; incoming and
+outgoing SVG artwork is loaded from
+`workspaces/questionaire-pane/src/chat/themes/assets/`. A new theme can be
+added by placing its `incoming` and `outgoing` SVG files in that directory and
+adding one configuration entry to the registry. The chat dialog provides the
+gallery, live preview, and local saved selection.
+
 Connections now require a short-lived server-signed ticket issued through the
 authenticated Solid WebID API, so the active WebID is verified server-side.
 Friend lists and relationship permissions are still self-reported by clients,

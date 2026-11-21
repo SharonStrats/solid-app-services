@@ -125,6 +125,30 @@ describe("Pivot Solid OIDC authentication", () => {
     expect(grader).toHaveBeenCalledOnce();
     store.close();
   });
+
+  it("explains that quota exhaustion is an application limit with a local reset", async () => {
+    const now = Date.now();
+    const start = Math.floor(now / 86_400_000) * 86_400_000;
+    const store = new SecurityStore(":memory:", "UTC");
+    try {
+      for (let n = 0; n < 200; n++) {
+        expect(store.consumeQuota(`${issuer}alice/profile/card#me`, start + Math.floor(n / 7) * 60_000)).toBe(true);
+      }
+      const grader = vi.fn();
+      const app = createApp(grader, [publicOrigin], undefined, undefined, undefined, apiSecurity(verify, store));
+      const auth = await credentials();
+      const response = await request(app).post(path).set({
+        Authorization: auth.authorization, DPoP: auth.proof
+      }).send({ question: "Why?", studentAnswer: "Because.", rubric: [{ criterion: "Reason", points: 1 }], maxScore: 1 });
+      expect(response.status).toBe(429);
+      expect(response.body.message).toContain("app's request limit");
+      expect(response.body.message).toContain("midnight in UTC");
+      expect(response.headers["retry-after"]).toBeUndefined();
+      expect(grader).not.toHaveBeenCalled();
+    } finally {
+      store.close();
+    }
+  });
 });
 
 describe("durable limits", () => {
@@ -147,12 +171,40 @@ describe("durable limits", () => {
   });
 
   it("enforces daily per-user and global limits", () => {
-    const store = new SecurityStore(":memory:");
+    const store = new SecurityStore(":memory:", "UTC");
     for (let n = 0; n < 200; n++) expect(store.consumeQuota("alice", n * 60_000)).toBe(true);
     expect(store.consumeQuota("alice", 201 * 60_000)).toBe(false);
     for (let n = 0; n < 800; n++) expect(store.consumeQuota(`user${n}`, 0)).toBe(true);
     expect(store.consumeQuota("another", 0)).toBe(false);
     store.close();
+  });
+
+  it.each([
+    ["ordinary day", "2026-11-20T13:00:00Z"],
+    ["daylight saving starts", "2026-10-04T13:00:00Z"],
+    ["daylight saving ends", "2026-04-05T14:00:00Z"]
+  ])("resets daily quotas at Melbourne midnight after an %s", (_label, midnight) => {
+    const store = new SecurityStore(":memory:", "Australia/Melbourne");
+    const reset = Date.parse(midnight);
+    for (let n = 200; n > 0; n--) {
+      expect(store.consumeQuota("alice", reset - n * 60_000)).toBe(true);
+    }
+    expect(store.consumeQuota("alice", reset - 1)).toBe(false);
+    expect(store.consumeQuota("alice", reset)).toBe(true);
+    store.close();
+  });
+
+  it("resets the global daily limit at local midnight", () => {
+    const store = new SecurityStore(":memory:", "Australia/Melbourne");
+    const reset = Date.parse("2026-11-20T13:00:00Z");
+    for (let n = 0; n < 1000; n++) expect(store.consumeQuota(`user${n}`, reset - 1)).toBe(true);
+    expect(store.consumeQuota("another", reset - 1)).toBe(false);
+    expect(store.consumeQuota("another", reset)).toBe(true);
+    store.close();
+  });
+
+  it("rejects an invalid quota time zone", () => {
+    expect(() => new SecurityStore(":memory:", "Not/A_Timezone")).toThrow(RangeError);
   });
 
   it("holds provider capacity until work finishes, including rejected work", async () => {

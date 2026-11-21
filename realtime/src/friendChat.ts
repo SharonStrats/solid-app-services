@@ -18,6 +18,7 @@ export interface FriendMessage {
 
 export interface FriendConversation {
   id: string;
+  title?: string;
   creatorWebId: string;
   participantWebIds: string[];
   participantNames: string[];
@@ -49,12 +50,14 @@ export class FriendChatStore {
       throw new Error("Choose between 1 and 9 friends.");
     }
     const recipients = [...new Set(data.recipients)];
+    const title = typeof data.title === "string" ? data.title.trim() : "";
+    if (title.length > 100) throw new Error("Chat names must be 100 characters or fewer.");
     if (recipients.some(uri => !sender.friends.includes(uri) || uri === sender.webId)) throw new Error("Only your friends can be invited.");
     this.pruneConversations();
     if (this.conversations.size >= 1000) throw new Error("Chat is busy. Please try again later.");
     const participantWebIds = [sender.webId, ...recipients];
     const conversation: FriendConversation = {
-      id: randomBytes(16).toString("hex"), creatorWebId: sender.webId,
+      id: randomBytes(16).toString("hex"), title: title || undefined, creatorWebId: sender.webId,
       participantWebIds,
       participantNames: participantWebIds.map(uri => [...this.sessions.values()].find(session => session.webId === uri)?.name ?? new URL(uri).pathname.split("/").filter(Boolean)[0] ?? "Friend"),
       messages: [], updatedAt: Date.now()

@@ -14,6 +14,7 @@ export interface SecurityOptions {
   publicOrigin: string;
   databasePath: string;
   allowInsecureLocalOrigins?: boolean;
+  quotaTimeZone?: string;
 }
 
 const caller = new AsyncLocalStorage<string>();
@@ -24,6 +25,10 @@ export class AiBusyError extends Error {}
 
 export function currentCaller(): string | undefined {
   return caller.getStore();
+}
+
+export function runWithCaller<T>(webId: string, task: () => T): T {
+  return caller.run(webId, task);
 }
 
 export async function createRealtimeTicket(webId: string, secret: string): Promise<string> {
@@ -147,9 +152,15 @@ export function createPivotVerifier(options: SecurityOptions, keys = createRemot
 
 export class SecurityStore {
   private readonly db: DatabaseSync;
+  private readonly quotaDateFormatter: Intl.DateTimeFormat;
+  readonly quotaTimeZone: string;
   private lastCleanup = 0;
 
-  constructor(path: string) {
+  constructor(path: string, quotaTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+    this.quotaDateFormatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: quotaTimeZone, year: "numeric", month: "2-digit", day: "2-digit"
+    });
+    this.quotaTimeZone = this.quotaDateFormatter.resolvedOptions().timeZone;
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(path);
     if (path !== ":memory:") chmodSync(path, 0o600);
@@ -173,26 +184,49 @@ export class SecurityStore {
     return this.db.prepare("INSERT OR IGNORE INTO proofs VALUES (?, ?)").run(id, expires).changes === 1;
   }
 
+  private quotaDay(now: number): number {
+    const parts = this.quotaDateFormatter.formatToParts(now);
+    const part = (type: Intl.DateTimeFormatPartTypes) => {
+      const value = parts.find(item => item.type === type)?.value;
+      if (!value) throw new Error(`Missing ${type} in quota date`);
+      return value;
+    };
+    return Number(`${part("year")}${part("month")}${part("day")}`);
+  }
+
+  private nextQuotaDay(now: number, day: number): number {
+    let lower = now;
+    let upper = now + 48 * 60 * 60 * 1000;
+    if (this.quotaDay(upper) === day) throw new Error("Unable to determine next quota day");
+    while (upper - lower > 1) {
+      const midpoint = Math.floor((lower + upper) / 2);
+      if (this.quotaDay(midpoint) === day) lower = midpoint;
+      else upper = midpoint;
+    }
+    return upper;
+  }
+
   consumeQuota(webId: string, now = Date.now()): boolean {
+    const day = this.quotaDay(now);
+    const dayExpires = this.nextQuotaDay(now, day);
+    const minute = Math.floor(now / 60_000);
     const windows = [
-      { scope: `minute:${webId}`, duration: 60_000, limit: 30 },
-      { scope: `day:${webId}`, duration: 86_400_000, limit: 200 },
-      { scope: "global", duration: 86_400_000, limit: 1000 }
+      { scope: `minute:${webId}`, window: minute, expires: (minute + 1) * 60_000, limit: 30 },
+      { scope: `day:${webId}`, window: day, expires: dayExpires, limit: 200 },
+      { scope: "global", window: day, expires: dayExpires, limit: 1000 }
     ];
     this.db.exec("BEGIN IMMEDIATE");
     try {
-      for (const { scope, duration, limit } of windows) {
-        const window = Math.floor(now / duration);
+      for (const { scope, window, limit } of windows) {
         const row = this.db.prepare("SELECT count FROM quotas WHERE scope = ? AND window = ?").get(scope, window);
         if (row && Number(row.count) >= limit) {
           this.db.exec("ROLLBACK");
           return false;
         }
       }
-      for (const { scope, duration } of windows) {
-        const window = Math.floor(now / duration);
+      for (const { scope, window, expires } of windows) {
         this.db.prepare(`INSERT INTO quotas VALUES (?, ?, 1, ?)
-          ON CONFLICT(scope, window) DO UPDATE SET count = count + 1`).run(scope, window, (window + 1) * duration);
+          ON CONFLICT(scope, window) DO UPDATE SET count = count + 1`).run(scope, window, expires);
       }
       this.db.exec("COMMIT");
       return true;
@@ -207,7 +241,7 @@ export class SecurityStore {
 
 export function createApiSecurity(options: SecurityOptions): RequestHandler {
   const verify = createPivotVerifier(options);
-  const store = new SecurityStore(options.databasePath);
+  const store = new SecurityStore(options.databasePath, options.quotaTimeZone);
   return apiSecurity(verify, store, options.allowInsecureLocalOrigins === true);
 }
 
@@ -252,7 +286,10 @@ export function apiSecurity(
         return;
       }
       if (!store.consumeQuota(identity.webId)) {
-        response.set("Retry-After", "60").status(429).json({ error: "usage_limit", message: "The AI usage limit has been reached. Please try again later." });
+        response.status(429).json({
+          error: "usage_limit",
+          message: `The app's request limit has been reached. Minute limits reset each minute; daily limits reset at midnight in ${store.quotaTimeZone}.`
+        });
         return;
       }
       caller.run(identity.webId, next);

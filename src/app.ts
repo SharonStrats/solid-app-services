@@ -8,6 +8,7 @@ import type { GradeAnswer } from "./grader.js";
 import { handleMcpRequest } from "./mcp.js";
 import type { UsageTracker } from "./usage.js";
 import { AiBusyError, createRealtimeTicket, currentCaller, withAiCapacity } from "./security.js";
+import { questionnaireAccessRequestSchema, type AccessRequestService } from "./accessRequests.js";
 
 export function createApp (
   gradeAnswer: GradeAnswer,
@@ -18,7 +19,8 @@ export function createApp (
   security: RequestHandler = (_request, response) => {
     response.status(503).json({ error: "security_unconfigured" });
   },
-  realtimeTicketSecret?: string
+  realtimeTicketSecret?: string,
+  accessRequests?: AccessRequestService
 ) {
   const app = express();
   app.disable("x-powered-by");
@@ -31,19 +33,42 @@ export function createApp (
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept", "Mcp-Session-Id", "Authorization", "DPoP"]
   }));
-  app.use(["/api", "/mcp"], security);
+  app.use(["/api", "/mcp", "/realtime"], security);
   app.use(express.json({ limit: "12mb" }));
 
   app.get("/health", (_request, response) => {
     response.json({ status: "ok", service: "solid-app-services" });
   });
-  app.post("/api/realtime/ticket", async (_request, response) => {
+  const issueRealtimeTicket: RequestHandler = async (_request, response) => {
     const webId = currentCaller();
     if (!webId || !realtimeTicketSecret) {
       response.status(503).json({ error: "realtime_unconfigured" });
       return;
     }
     response.json({ ticket: await createRealtimeTicket(webId, realtimeTicketSecret) });
+  };
+  app.post("/api/realtime/ticket", issueRealtimeTicket);
+  app.post("/realtime/ticket", issueRealtimeTicket);
+  app.post("/api/access-requests/questionnaires", async (request, response, next) => {
+    if (!accessRequests) {
+      response.status(503).json({ error: "access_requests_unconfigured" });
+      return;
+    }
+    const parsed = questionnaireAccessRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: "invalid_request", details: parsed.error.issues });
+      return;
+    }
+    try {
+      const result = await accessRequests.request(parsed.data);
+      response.status(202).json({
+        accepted: true,
+        duplicate: result.duplicate,
+        message: result.duplicate ? "Your request was already sent recently." : "Your request was sent."
+      });
+    } catch (error) {
+      next(error);
+    }
   });
   app.get("/metrics/usage", (request, response) => {
     if (!usage || !usageMetricsToken || request.get("authorization") !== `Bearer ${usageMetricsToken}`) {

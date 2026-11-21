@@ -13,6 +13,24 @@ call OpenAI, and return validated structured data.
 OpenAI credentials must stay in this service and must never be placed in
 Mashlib, Pivot, the questionnaire pane, or browser code.
 
+### Questionnaire access requests
+
+`POST /api/access-requests/questionnaires` requires the same authenticated
+DPoP request as the other API routes. It accepts only the configured resource
+`{ "resourceKey": "grade-9-chemistry", "resourceLabel": "Grade 9 Chemistry Quizzes" }`; the server
+derives the requester WebID from the verified auth context. Requests are
+deduplicated per WebID/resource/day and sent through Resend. Configure these
+server-only variables to enable the endpoint:
+
+```env
+RESEND_API_KEY=...
+ACCESS_REQUEST_EMAIL_TO=admin@example.com
+ACCESS_REQUEST_EMAIL_FROM=quiz@example.com
+```
+
+The sender domain must be verified with Resend. Never expose the API key in
+the questionnaire bundle or browser configuration.
+
 MCP is an optional tool interface over the same capabilities. It is useful
 for an AI client that needs to call document, feedback, or generation tools;
 the questionnaire pane can continue using the REST API.
@@ -118,8 +136,13 @@ are not shared across replicas.
 
 Limits: 30 authenticated requests/minute and 200/day per WebID, 1,000/day
 globally, two concurrent AI/extraction jobs per WebID, eight globally.
-Minute/day buckets use Unix time. Requests returning an error still consume
-quota. Limits return 429; this is not a guaranteed monetary budget. Configure
+Minute buckets use Unix time. Daily buckets reset at midnight in the server's
+local time zone, including daylight-saving changes. Set `QUOTA_TIME_ZONE` to an
+IANA time zone such as `Australia/Melbourne` to keep that reset consistent
+across deployments. Changing the time zone or upgrading from UTC daily buckets
+starts a new daily bucket; old quota records expire normally. All authenticated
+`/api` and `/mcp` requests, including those returning an error, consume quota.
+Limits return 429; this is not a guaranteed monetary budget. Configure
 a provider-side budget and monitor usage. OpenAI calls have a 120-second
 timeout, no automatic retries, and output limits of 4,000 tokens for grading
 and 16,000 for other generation.
