@@ -51,10 +51,14 @@ describe("evidence-based essay assessment", () => {
     expect(essayScoringInstructions).toContain("check each reason separately");
     expect(essayScoringInstructions).toContain("present but weak");
     expect(essayScoringInstructions).toContain("every sentence");
+    expect(essayScoringInstructions).toContain("Calibrate achievement to the supplied year level");
     expect(essayTutoringInstructions).toContain("Name the actual word, phrase, sentence or reasoning gap");
     expect(essayTutoringInstructions).toContain("mentioning another viewpoint");
     expect(essayTutoringInstructions).toContain("do not recommend sophisticated synonyms");
+    expect(essayTutoringInstructions).toContain("Keep the criteria distinct");
+    expect(essayTutoringInstructions).toContain("Do not suggest changing a sentence that is already clear");
     expect(essayTutoringInstructions).toContain("no more than two priority improvements");
+    expect(essayTutoringInstructions).toContain("one primary, concrete and prioritised activity");
     expect(essayTutoringInstructions).toContain("optional refinement");
     expect(essayTutoringInstructions).toContain("explicitly tell the student that the work is excellent");
     expect(essayTutoringInstructions).toContain("varied improvement techniques");
