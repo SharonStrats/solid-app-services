@@ -80,6 +80,20 @@ describe("evidence-based essay assessment", () => {
     expect(persuasive).not.toContain("creates an experience for the reader");
   });
 
+  it("requires film analysis to connect technique, audience effect and meaning", () => {
+    const film = writingTaskGuidance({
+      essay: "The camera focuses on Dorothy walking out with her colleagues.",
+      assignment: "Hidden Figures demonstrates that people are often limited not by their abilities, but by the opportunities society gives them. How does the film encourage audiences to question the way society determines who deserves success?",
+      rubric: request.rubric
+    });
+    expect(film).toContain("what the technique makes the audience notice, feel or understand");
+    expect(film).toContain("what idea, relationship, power dynamic or theme");
+    expect(film).toContain("Do not award high achievement for merely naming");
+    expect(film).toContain("accept different interpretations");
+    expect(film).toContain("missing step precisely");
+    expect(film).not.toContain("This is persuasive writing");
+  });
+
   it("constrains provider quotations to actual submitted sentences without changing punctuation", () => {
     const schema = essayAssessmentJsonSchema({ essay: "I don't agree. Why is that?" });
     expect(schema.properties.criteria.items.properties.quotes).toEqual({

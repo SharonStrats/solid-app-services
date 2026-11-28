@@ -205,6 +205,12 @@ Never invent evidence, research, surveys, statistics, sources or errors. Return 
 
 export function writingTaskGuidance(request: EssayFeedbackRequest): string {
   const task = `${request.assignment ?? ""} ${request.rubric?.map(item => item.criterion).join(" ") ?? ""}`.toLowerCase();
+  if (/\bfilm\b|\bmovie\b|\bcinematic\b|\bmise[- ]en[- ]sc[eè]ne\b|\bcamera angle\b|\bcamera shot\b|\bclose[- ]up\b|\bframing\b|\blighting\b|\bfilm editing\b|\bsound design\b/.test(task)) {
+    return `Task-specific priority: This is film or media analysis. Distinguish identifying a film technique from analysing it. For each technique, assess whether the writing explains (1) what technique is used, (2) what the technique makes the audience notice, feel or understand, (3) what idea, relationship, power dynamic or theme the technique communicates, and (4) how that meaning answers the task.
+Do not award high achievement for merely naming a camera shot, angle, framing choice, lighting, sound, editing technique or mise-en-scène element. A description of what happens on screen is evidence of scene knowledge, not yet analysis of the film's construction. Reward the reasoning step that connects the film choice to audience effect and then to the task's idea.
+For a question about opportunity, success, power or inequality, assess whether the student explains how the film represents those ideas through characters, dialogue, visual composition, contrast, symbolism, sound, editing or narrative structure where relevant. Do not require the exact interpretation suggested by the question or an assumed reading of the film: accept different interpretations when they are grounded in the student's evidence and logically explain the audience effect.
+If the student identifies a technique but stops before explaining its effect or significance, name that missing step precisely. Do not respond only with "add more detail."`;
+  }
   if (/\bdescrib(?:e|ing|ed|tion)|sensory|frightening experience|creative writing/.test(task)) {
     return `Task-specific priority: This is descriptive or creative writing. Assess how effectively the writing creates an experience for the reader through sensory detail, atmosphere, imagery, precise natural vocabulary, emotional impact and suspense where appropriate.
 Distinguish mentioning a sense ("it was cold") from effective sensory description ("an icy wind swept across my face") and from vivid imagery or figurative language. Do not award a high score merely because several senses are listed.
