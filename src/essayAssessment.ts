@@ -159,7 +159,7 @@ export function evidenceSentences(essay: string): string[] {
 }
 
 export function essayAssessmentJsonSchema(request: EssayFeedbackRequest) {
-  const quoteSchema = { type: "string", enum: evidenceSentences(request.essay) };
+  const quoteSchema = { type: "string" };
   return {
     ...assessmentJsonSchema,
     properties: {

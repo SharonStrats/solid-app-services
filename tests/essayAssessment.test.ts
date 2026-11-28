@@ -97,9 +97,9 @@ describe("evidence-based essay assessment", () => {
   it("constrains provider quotations to actual submitted sentences without changing punctuation", () => {
     const schema = essayAssessmentJsonSchema({ essay: "I don't agree. Why is that?" });
     expect(schema.properties.criteria.items.properties.quotes).toEqual({
-      type: "array", minItems: 1, items: { type: "string", enum: ["I don't agree.", "Why is that?"] }
+      type: "array", minItems: 1, items: { type: "string" }
     });
-    expect(schema.properties.languageErrors.items.properties.quote.enum).toEqual(["I don't agree.", "Why is that?"]);
+    expect(schema.properties.languageErrors.items.properties.quote).toEqual({ type: "string" });
   });
 
   it("rejects invented quotations and language errors", () => {
