@@ -167,4 +167,26 @@ describe("evidence-based essay assessment", () => {
     await expect(createAiServices("test-key", "test-model").essayFeedback(request)).rejects.toThrow("quoted text absent");
     expect(create).toHaveBeenCalledTimes(1);
   });
+
+  it("accepts feedback without a sentence revision while preserving the assessment", async () => {
+    const assessed = analysis();
+    assessed.criteria[0].score = 5;
+    const tutoringOutput = feedback();
+    tutoringOutput.criterionFeedback[0].exampleRevision = "";
+    tutoringOutput.criterionFeedback[0].nextStep = "No correction is required; further practice is optional.";
+    create.mockReset()
+      .mockResolvedValueOnce({ output_text: JSON.stringify(assessed) })
+      .mockResolvedValueOnce({ output_text: JSON.stringify(tutoringOutput) });
+
+    const result = await createAiServices("test-key", "test-model").essayFeedback(request);
+
+    expect(result.criterionFeedback?.[0]).toMatchObject({
+      exampleRevision: "",
+      nextStep: tutoringOutput.criterionFeedback[0].nextStep,
+      score: 5,
+      evidence: "Students need free time.",
+      confidence: 0.9
+    });
+    expect(create).toHaveBeenCalledTimes(2);
+  });
 });

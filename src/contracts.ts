@@ -82,7 +82,7 @@ export const essayFeedbackResponseSchema = z.object({
     assessment: z.string().min(1),
     evidence: z.string().min(1),
     nextStep: z.string().min(1),
-    exampleRevision: z.string().min(1),
+    exampleRevision: z.string(),
     // Optional additive fields keep older questionnaire clients compatible.
     confidence: z.number().min(0).max(1).optional(),
     evidenceQuality: z.enum(["direct", "partial", "missing", "ambiguous"]).optional()

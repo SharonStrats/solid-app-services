@@ -243,6 +243,7 @@ Do not invent further errors or present optional punctuation and stylistic prefe
 Never introduce statistics, surveys, research, sources or factual findings, including in exampleRevision.
 Use reasoned real-life examples or explicitly labelled hypothetical scenarios, never hypothetical research results.
 An exampleRevision may revise a student's sentence but must not fabricate supporting facts or rewrite the whole response.
+Return an empty string for exampleRevision when no concrete sentence revision is appropriate; keep the assessment and nextStep informative.
 Explain genuine strengths, the most important limitations and why they matter without repeating criticisms across sections.
 When most criteria are 4 or 5, explicitly tell the student that the work is excellent or high-achieving. Do not invent a defect to justify an improvement. For a criterion already fully achieved, label the next step as an optional refinement and say that no correction is required.
 Use varied improvement techniques across examples where appropriate (for example sensory imagery, sound imagery, physical reaction, emotional impact or symbolism); do not repeat the same fear reaction in every section. Avoid examples that make an already strong piece sound deficient.

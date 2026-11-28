@@ -78,6 +78,10 @@ them as successful feedback. These checks do not prove every judgement correct;
 AI feedback remains advisory and needs human calibration. Low-confidence or
 ambiguous assessments set `needsReview`.
 
+`criterionFeedback.exampleRevision` may be an empty string when no concrete
+sentence revision is appropriate. Assessment and next-step text remain required;
+clients can hide empty revision examples rather than demand unnecessary corrections.
+
 The public response shape is unchanged. The two calls add latency and provider
 cost; both are recorded separately in usage metrics. `pnpm dev` reloads source
 changes automatically; deployments using `pnpm start` must build and restart.
